@@ -1,0 +1,20 @@
+{
+  "name": "fifa-predictor-2026-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@tailwindcss/forms": "latest",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "react-scripts": "latest",
+    "recharts": "latest",
+    "tailwindcss": "latest"
+  },
+  "scripts": {"start": "react-scripts start", "build": "react-scripts build", "test": "react-scripts test --watchAll=false"},
+  "eslintConfig": {"extends": ["react-app", "react-app/jest"]},
+  "browserslist": {"production": [">0.2%", "not dead", "not op_mini all"], "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]},
+  "devDependencies": {}
+}

@@ -24,11 +24,6 @@ The backend keeps exactly 100 numeric feature fields for each team:
 8. **Tactics and discipline:** possession, press, counterattack, set pieces, shots, shots on target, tackles, yellows, shootout record.
 9. **User layer:** confidence, gut feeling, bias against model, historical user accuracy, emotional investment.
 
-
-## Runbook and operational guide
-
-For detailed step-by-step local startup, smoke tests, system flow, and recommended production improvements, see [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
-
 ## Backend setup
 
 ```bash

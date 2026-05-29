@@ -1,0 +1,2 @@
+import React from 'react';
+export default function BiasSlider({ label, value, onChange }) { return <label className="block"><span className="mb-2 flex justify-between text-sm font-semibold"><span>{label}</span><span>{value}/10</span></span><input className="w-full accent-emerald-400" type="range" min="0" max="10" value={value} onChange={e => onChange(Number(e.target.value))}/><div className="mt-1 h-1 rounded bg-slate-800"><div className="h-1 rounded bg-emerald-400" style={{width:`${value*10}%`}} /></div></label>; }

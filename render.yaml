@@ -1,0 +1,19 @@
+databases:
+  - name: world-cup-replay-db
+    databaseName: world_cup_replay
+    user: world_cup_replay
+
+services:
+  - type: web
+    name: world-cup-replay-api
+    runtime: docker
+    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: world-cup-replay-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false

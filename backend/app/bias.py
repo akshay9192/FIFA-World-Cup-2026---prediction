@@ -22,7 +22,9 @@ class BiasService:
             user_confidence=bias_request.user_confidence,
             emotional_investment=bias_request.emotional_investment,
         )
-        db.add(record); db.commit(); db.refresh(record)
+        db.add(record)
+        db.flush()
+        db.refresh(record)
         return {"match_id": match.id, "model_prediction": model_prediction, "user_prediction": bias_request.user_prediction, "delta": round(delta, 4)}
 
     def get_bias_summary(self, db: Session) -> dict[str, Any]:
@@ -56,4 +58,4 @@ class BiasService:
                 row.actual_result = match.actual_winner
                 row.user_correct = row.user_prediction == match.actual_winner
                 row.model_correct = row.model_prediction == match.actual_winner
-        db.commit()
+        db.flush()

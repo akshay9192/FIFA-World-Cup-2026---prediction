@@ -1,40 +1,52 @@
 from __future__ import annotations
 
 import os
-import time
 from datetime import datetime
 from typing import Any
 
 import requests
 from sqlalchemy.orm import Session
 
-from .database import Match, SessionLocal
+from .database import Match, SessionLocal, Team
 
 API_URL = "https://api.football-data.org/v4"
+
+TEAM_ALIASES = {
+    "Korea Republic": "Korea Republic",
+    "South Korea": "Korea Republic",
+    "Turkey": "Türkiye",
+    "Iran": "IR Iran",
+    "DR Congo": "Congo DR",
+}
+
 
 class FootballDataSync:
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or os.getenv("FOOTBALL_DATA_API_KEY")
         if not self.api_key:
-            raise ValueError("FOOTBALL_DATA_API_KEY is required for football-data.org sync")
+            raise ValueError("FOOTBALL_DATA_API_KEY is not configured; the offline replay remains available")
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        headers = {"X-Auth-Token": self.api_key}
-        url = f"{API_URL}{path}"
-        for attempt in range(2):
-            try:
-                response = requests.get(url, headers=headers, params=params, timeout=30)
-            except requests.RequestException as exc:
-                raise RuntimeError("Football data API unavailable — use manual entry") from exc
-            if response.status_code == 429 and attempt == 0:
-                time.sleep(60)
-                continue
-            if response.status_code >= 500:
-                raise RuntimeError("Football data API unavailable — use manual entry")
-            if response.status_code >= 400:
-                raise RuntimeError(f"football-data.org error {response.status_code}: {response.text[:200]}")
+        try:
+            response = requests.get(
+                f"{API_URL}{path}",
+                headers={"X-Auth-Token": self.api_key},
+                params=params,
+                timeout=15,
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError("Football data API unavailable; the offline replay remains available") from exc
+        if response.status_code == 429:
+            retry_after = response.headers.get("Retry-After", "later")
+            raise RuntimeError(f"Football data API rate limit reached; retry after {retry_after}")
+        if response.status_code >= 500:
+            raise RuntimeError("Football data API unavailable; the offline replay remains available")
+        if response.status_code >= 400:
+            raise RuntimeError(f"Football data API rejected the request ({response.status_code})")
+        try:
             return response.json()
-        raise RuntimeError("Football data API unavailable — use manual entry")
+        except requests.JSONDecodeError as exc:
+            raise RuntimeError("Football data API returned an invalid response") from exc
 
     def sync_world_cup_fixtures(self) -> int:
         data = self._get("/competitions/WC/matches")
@@ -53,23 +65,37 @@ class FootballDataSync:
     def get_team_stats(self, team_name: str) -> dict[str, Any]:
         data = self._get("/teams")
         for team in data.get("teams", []):
-            if team.get("name", "").lower() == team_name.lower() or team.get("shortName", "").lower() == team_name.lower():
+            if team.get("name", "").casefold() == team_name.casefold() or team.get("shortName", "").casefold() == team_name.casefold():
                 return team
         return {}
 
     def _upsert_matches(self, db: Session, api_matches: list[dict[str, Any]], finished_only: bool) -> int:
         updated = 0
         for item in api_matches:
-            home = item.get("homeTeam", {}).get("name")
-            away = item.get("awayTeam", {}).get("name")
+            home = TEAM_ALIASES.get(item.get("homeTeam", {}).get("name"), item.get("homeTeam", {}).get("name"))
+            away = TEAM_ALIASES.get(item.get("awayTeam", {}).get("name"), item.get("awayTeam", {}).get("name"))
             if not home or not away:
                 continue
-            utc_date = item.get("utcDate") or datetime.utcnow().isoformat()
+            if not db.query(Team).filter(Team.name == home).first() or not db.query(Team).filter(Team.name == away).first():
+                continue
+            utc_date = item.get("utcDate")
+            if not utc_date:
+                continue
             match_date = datetime.fromisoformat(utc_date.replace("Z", "+00:00")).replace(tzinfo=None)
-            stage = self._stage(item.get("stage"))
-            match = db.query(Match).filter(Match.team_a == home, Match.team_b == away, Match.match_date == match_date).first()
+            external_id = f"football-data-{item['id']}" if item.get("id") is not None else None
+            match = db.query(Match).filter(Match.external_id == external_id).first() if external_id else None
             if not match:
-                match = Match(team_a=home, team_b=away, match_date=match_date, venue=item.get("venue"), stage=stage, group_name=item.get("group"))
+                match = db.query(Match).filter(Match.team_a == home, Match.team_b == away).first()
+            if not match:
+                match = Match(
+                    external_id=external_id,
+                    team_a=home,
+                    team_b=away,
+                    match_date=match_date,
+                    venue=item.get("venue"),
+                    stage=self._stage(item.get("stage")),
+                    group_name=item.get("group"),
+                )
                 db.add(match)
             score = item.get("score", {}).get("fullTime", {})
             if item.get("status") == "FINISHED" or finished_only:
@@ -77,10 +103,19 @@ class FootballDataSync:
                 match.actual_score_b = score.get("away")
                 if match.actual_score_a is not None and match.actual_score_b is not None:
                     match.actual_winner = home if match.actual_score_a > match.actual_score_b else away if match.actual_score_b > match.actual_score_a else "Draw"
-                    match.result_source = "auto"
+                    match.result_source = "football-data.org API"
             updated += 1
         return updated
 
-    def _stage(self, raw: str | None) -> str:
-        mapping = {"GROUP_STAGE": "group", "LAST_32": "r32", "LAST_16": "r16", "QUARTER_FINALS": "qf", "SEMI_FINALS": "sf", "FINAL": "final"}
+    @staticmethod
+    def _stage(raw: str | None) -> str:
+        mapping = {
+            "GROUP_STAGE": "group",
+            "LAST_32": "r32",
+            "LAST_16": "r16",
+            "QUARTER_FINALS": "qf",
+            "SEMI_FINALS": "sf",
+            "THIRD_PLACE": "third",
+            "FINAL": "final",
+        }
         return mapping.get(raw or "", "group")

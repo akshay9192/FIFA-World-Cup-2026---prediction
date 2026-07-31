@@ -1,20 +1,46 @@
 {
-  "name": "fifa-predictor-2026-frontend",
-  "version": "1.0.0",
+  "name": "world-cup-2026-replay-frontend",
+  "version": "2.0.0",
   "private": true,
-  "dependencies": {
-    "@tailwindcss/forms": "latest",
-    "autoprefixer": "latest",
-    "postcss": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-router-dom": "latest",
-    "react-scripts": "latest",
-    "recharts": "latest",
-    "tailwindcss": "latest"
+  "engines": {
+    "node": ">=20 <23"
   },
-  "scripts": {"start": "react-scripts start", "build": "react-scripts build", "test": "react-scripts test --watchAll=false"},
-  "eslintConfig": {"extends": ["react-app", "react-app/jest"]},
-  "browserslist": {"production": [">0.2%", "not dead", "not op_mini all"], "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]},
-  "devDependencies": {}
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "0.5.10",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.18",
+    "react-scripts": "5.0.1",
+    "tailwindcss": "3.4.17"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "lint": "eslint src"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
 }

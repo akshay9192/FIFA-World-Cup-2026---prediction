@@ -10,4 +10,12 @@ node_modules/
 build/
 dist/
 .pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env.local
+frontend/.env*
+!frontend/.env.example
+coverage/
+npm-debug.log*
 .DS_Store

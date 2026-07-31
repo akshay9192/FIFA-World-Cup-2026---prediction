@@ -38,6 +38,7 @@ class MatchCreate(MatchBase):
 
 class MatchResponse(MatchBase):
     id: int
+    external_id: Optional[str] = None
     predicted_score_a: Optional[float] = None
     predicted_score_b: Optional[float] = None
     predicted_winner: Optional[str] = None
@@ -49,6 +50,7 @@ class MatchResponse(MatchBase):
     actual_score_b: Optional[int] = None
     actual_winner: Optional[str] = None
     result_source: Optional[str] = None
+    result_note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +67,11 @@ class PredictionResponse(_Schema):
     venue: Optional[str] = None
     stage: str
     group_name: Optional[str] = None
+    actual_score_a: Optional[int] = None
+    actual_score_b: Optional[int] = None
+    actual_winner: Optional[str] = None
+    result_source: Optional[str] = None
+    result_note: Optional[str] = None
     predicted_score_a: float
     predicted_score_b: float
     predicted_winner: str
@@ -88,7 +95,7 @@ class AccuracyResponse(BaseModel):
 
 class BiasRequest(BaseModel):
     match_id: int
-    user_prediction: str
+    user_prediction: str = Field(min_length=1, max_length=100)
     user_confidence: float = Field(ge=0, le=10)
     emotional_investment: float = Field(ge=0, le=10)
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -17,7 +16,12 @@ class PredictionService:
         self.predictor = predictor
 
     def get_all_predictions(self, db: Session) -> list[dict[str, Any]]:
-        matches = db.query(Match).order_by(Match.match_date.asc()).all()
+        matches = (
+            db.query(Match)
+            .filter(Match.actual_winner.isnot(None))
+            .order_by(Match.match_date.asc())
+            .all()
+        )
         return [self._prediction_for_match(db, match) for match in matches]
 
     def get_match_prediction(self, db: Session, match_id: int) -> dict[str, Any]:
@@ -62,6 +66,11 @@ class PredictionService:
             "venue": match.venue,
             "stage": match.stage,
             "group_name": match.group_name,
+            "actual_score_a": match.actual_score_a,
+            "actual_score_b": match.actual_score_b,
+            "actual_winner": match.actual_winner,
+            "result_source": match.result_source,
+            "result_note": match.result_note,
             **prediction,
             "feature_contributions": contributions,
             "biased_prediction": None,

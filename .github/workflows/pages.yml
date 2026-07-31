@@ -22,16 +22,37 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm test -- --watchAll=false --runInBand
         env:
           CI: "true"
+      - name: Validate public backend URL
+        env:
+          REACT_APP_API_BASE: ${{ vars.REACT_APP_API_BASE }}
+        run: |
+          if [ -z "$REACT_APP_API_BASE" ]; then
+            echo "::error::Repository variable REACT_APP_API_BASE is missing. Configure it with the public Render service origin."
+            exit 1
+          fi
+          case "$REACT_APP_API_BASE" in
+            http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*)
+              echo "::error::REACT_APP_API_BASE must use the public Render service origin, not localhost."
+              exit 1
+              ;;
+          esac
+          case "$REACT_APP_API_BASE" in
+            */)
+              echo "::error::REACT_APP_API_BASE must not have a trailing slash."
+              exit 1
+              ;;
+          esac
       - run: npm run build
         env:
           REACT_APP_API_BASE: ${{ vars.REACT_APP_API_BASE }}

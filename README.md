@@ -208,19 +208,24 @@ with GitHub's official Pages actions on pushes to `main`.
 
 One-time repository setup:
 
-1. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
-2. Open **Settings → Secrets and variables → Actions → Variables** and add the
-   public repository variable `REACT_APP_API_BASE` with the external Render
-   service origin, for example `https://world-cup-replay-api.onrender.com`. Do
-   not add a trailing slash.
+1. Open **Repository → Settings → Pages → Build and deployment → Source →
+   GitHub Actions**.
+2. Open **Repository → Settings → Secrets and variables → Actions → Variables
+   → New repository variable**. Create `REACT_APP_API_BASE` with the external
+   Render service origin, for example
+   `https://YOUR-RENDER-SERVICE.onrender.com`. Do not add a trailing slash.
 3. Set the Render backend's `CORS_ORIGINS` to
-   `https://akshay9192.github.io`. An Origin contains the scheme and hostname
-   only, so the repository path must not be included.
-4. Push to `main` or manually run **Deploy frontend to GitHub Pages**.
+   `https://akshay9192.github.io,http://localhost:3001`. An Origin contains the
+   scheme and hostname only, so the browser Origin does not include
+   `/FIFA-World-Cup-2026---prediction/`. Do not add a trailing slash.
+4. Push to `main` or manually run **Deploy frontend to GitHub Pages**. Rerun the
+   Pages deployment after changing `REACT_APP_API_BASE` because Create React
+   App embeds it at build time.
 
 Every `REACT_APP_*` value is visible in the browser bundle. Store only the public
-backend origin there—never credentials, API keys, tokens, or other secrets. A
-custom domain is neither configured nor required.
+backend origin there—never credentials, API keys, tokens, or other secrets.
+No purchased custom domain is configured or required: GitHub supplies the free
+`github.io` project URL. The Render backend remains a separate external service.
 
 ## Render backend + managed PostgreSQL
 
@@ -233,8 +238,9 @@ user.
 1. In Render, choose **New → Blueprint** and connect this repository.
 2. Select `render.yaml`. Render creates `world-cup-replay-api` and
    `world-cup-replay-db`.
-3. When prompted for `CORS_ORIGINS`, enter the GitHub Pages browser origin:
-   `https://akshay9192.github.io`. Do not append the repository path.
+3. When prompted for `CORS_ORIGINS`, enter
+   `https://akshay9192.github.io,http://localhost:3001`. Do not append the
+   repository path or a trailing slash.
 4. Confirm `DATABASE_URL` is linked from the managed database; do not copy it
    into a tracked file.
 5. Deploy and wait for `/health` to report `status: ok`, 48 teams, and 104

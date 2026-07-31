@@ -64,6 +64,12 @@ test('renders a successful replay overview and mobile navigation', async () => {
   expect((await screen.findAllByText('Spain')).length).toBeGreaterThan(0);
   await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
   expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toHaveClass('flex');
+  expect(screen.getByRole('link', { name: 'Matches' })).toHaveAttribute('href', '#/predictions');
+  expect(screen.getByRole('link', { name: 'Accuracy' })).toHaveAttribute('href', '#/accuracy');
+  expect(screen.getByRole('link', { name: 'Your prediction' })).toHaveAttribute('href', '#/bias');
+  await user.click(screen.getByRole('link', { name: 'Matches' }));
+  await waitFor(() => expect(window.location.hash).toBe('#/predictions'));
+  expect(await screen.findByRole('heading', { name: 'Every match, replayed' })).toBeInTheDocument();
 });
 
 test('shows a useful retry state when the backend is unavailable', async () => {

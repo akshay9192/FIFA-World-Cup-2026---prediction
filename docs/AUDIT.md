@@ -3,7 +3,7 @@
 ## Repository state
 
 The starting repository was a small FastAPI/React monorepo with no automated
-tests, no Netlify configuration, no local setup scripts, an ignored local
+tests, no frontend hosting configuration, no local setup scripts, an ignored local
 SQLite database, and one untracked `frontend/package-lock.json`. No `AGENTS.md`
 was present. The lockfile has been retained and brought under the production
 dependency configuration.
@@ -26,8 +26,8 @@ dependency configuration.
 - React 19, React Router 7, Tailwind 4, and older Create React App code were
   installed through `latest` ranges. There were no route, error-state, or data
   rendering tests.
-- Deployment notes targeted Firebase rather than the requested Netlify
-  frontend, and the Docker command ignored a platform-provided port.
+- Deployment notes targeted an obsolete frontend host, and the Docker command
+  ignored a platform-provided port.
 
 ## Data classification after remediation
 

@@ -5,7 +5,7 @@ import Bias from './pages/Bias';
 import Dashboard from './pages/Dashboard';
 import NotFound from './pages/NotFound';
 import Predictions from './pages/Predictions';
-import { Link, RouterProvider, useRouter } from './router';
+import { HashRouter, Link, useRouter } from './router';
 
 const links = [
   ['/', 'Replay'],
@@ -56,9 +56,9 @@ function Navigation() {
 
 export default function App() {
   return (
-    <RouterProvider>
+    <HashRouter>
       <AppLayout />
-    </RouterProvider>
+    </HashRouter>
   );
 }
 

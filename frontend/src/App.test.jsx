@@ -43,7 +43,7 @@ const accuracy = {
 };
 
 beforeEach(() => {
-  window.history.pushState({}, '', '/');
+  window.location.hash = '#/';
   global.fetch = jest.fn();
 });
 
@@ -74,7 +74,7 @@ test('shows a useful retry state when the backend is unavailable', async () => {
 });
 
 test('supports direct prediction routes and renders API data', async () => {
-  window.history.pushState({}, '', '/predictions');
+  window.location.hash = '#/predictions';
   global.fetch.mockResolvedValue(ok([prediction]));
   render(<App />);
   expect(await screen.findByRole('heading', { name: 'Every match, replayed' })).toBeInTheDocument();
@@ -82,8 +82,30 @@ test('supports direct prediction routes and renders API data', async () => {
   expect(screen.getByText('Showing 1 of 1 matches')).toBeInTheDocument();
 });
 
+test('supports direct accuracy routes', async () => {
+  window.location.hash = '#/accuracy';
+  global.fetch.mockImplementation((url) => (
+    Promise.resolve(ok(url.endsWith('/accuracy') ? accuracy : [prediction]))
+  ));
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: /Where the model got it right/ })).toBeInTheDocument();
+  expect(await screen.findAllByText('100.0%')).toHaveLength(2);
+});
+
+test('supports direct bias routes', async () => {
+  window.location.hash = '#/bias';
+  global.fetch.mockImplementation((url) => (
+    Promise.resolve(ok(url.endsWith('/bias')
+      ? { user_correct: 0, model_correct: 0, completed_comparisons: 0 }
+      : [prediction]))
+  ));
+  render(<App />);
+  expect(await screen.findByRole('heading', { name: 'Put your instinct against the model' })).toBeInTheDocument();
+  expect(await screen.findByText('Spain vs Argentina', { exact: false })).toBeInTheDocument();
+});
+
 test('renders the friendly 404 route', async () => {
-  window.history.pushState({}, '', '/not-a-real-page');
+  window.location.hash = '#/not-a-real-page';
   render(<App />);
   await waitFor(() => expect(screen.getByText('That replay route does not exist.')).toBeInTheDocument());
 });

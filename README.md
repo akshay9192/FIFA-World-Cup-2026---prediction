@@ -142,7 +142,7 @@ created records.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Production only | SQLAlchemy URL. Omit locally for `sqlite:///./fifa_predictor.db`; use the managed PostgreSQL internal connection string in production. Legacy `postgres://` is normalized. |
-| `CORS_ORIGINS` | Production | Comma-separated exact frontend origins, without trailing slashes. Local defaults allow `http://localhost:3001` and `http://127.0.0.1:3001`. |
+| `CORS_ORIGINS` | Production | Comma-separated exact frontend origins, without trailing slashes. For this GitHub Pages site use `https://akshay9192.github.io`; browser origins contain only the scheme and hostname, not `/FIFA-World-Cup-2026---prediction/`. Local defaults allow `http://localhost:3001` and `http://127.0.0.1:3001`. |
 | `FOOTBALL_DATA_API_KEY` | No | Enables the optional football-data.org sync endpoint. The offline replay works without it. |
 | `PORT` | Host-provided | Container listen port. Defaults to `8080`. |
 
@@ -190,32 +190,37 @@ results, recalibration, simulation caching, and offline sync behaviour. Frontend
 tests cover direct routing, 404 handling, backend failure/retry UI, responsive
 navigation, and a successful data render.
 
-## Netlify frontend deployment
+## GitHub Pages frontend deployment
 
-The root `netlify.toml` is authoritative:
+The React frontend is published at:
 
-- Base directory: `frontend`
-- Build command: `npm ci && npm run build`
-- Publish directory: `frontend/build` (shown as `build` relative to the base)
-- Node: `20`
-- SPA fallback: `/* -> /index.html` with status 200
+`https://akshay9192.github.io/FIFA-World-Cup-2026---prediction/`
 
-Steps:
+The site uses hash routing because GitHub Pages does not provide SPA rewrite
+rules. Its routes are `#/`, `#/predictions`, `#/accuracy`, `#/bias`, and
+`#/about`; unknown hash routes show the application's friendly 404 page. The
+`homepage` field in `frontend/package.json` gives Create React App the repository
+subpath used for generated CSS, JavaScript, and manifest assets.
 
-1. Push your branch to GitHub when you are ready.
-2. In Netlify, choose **Add new site → Import an existing project** and select
-   this repository.
-3. Netlify should read `netlify.toml`; do not replace its base/build/publish
-   values in the UI.
-4. Add the public environment variable
-   `REACT_APP_API_BASE=https://YOUR-BACKEND-HOST`.
-5. Deploy, then open `/predictions`, `/accuracy`, and `/bias` directly to verify
-   SPA refreshes.
-6. Set the backend `CORS_ORIGINS` to the exact production Netlify origin. Add a
-   custom-domain origin as a comma-separated second value if used.
+`.github/workflows/pages.yml` installs Node 20 dependencies, runs the frontend
+tests, builds `frontend/build`, uploads it as the Pages artifact, and deploys it
+with GitHub's official Pages actions on pushes to `main`.
 
-Netlify authentication is the only external step: sign in to Netlify and
-authorize access to this GitHub repository.
+One-time repository setup:
+
+1. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
+2. Open **Settings → Secrets and variables → Actions → Variables** and add the
+   public repository variable `REACT_APP_API_BASE` with the external Render
+   service origin, for example `https://world-cup-replay-api.onrender.com`. Do
+   not add a trailing slash.
+3. Set the Render backend's `CORS_ORIGINS` to
+   `https://akshay9192.github.io`. An Origin contains the scheme and hostname
+   only, so the repository path must not be included.
+4. Push to `main` or manually run **Deploy frontend to GitHub Pages**.
+
+Every `REACT_APP_*` value is visible in the browser bundle. Store only the public
+backend origin there—never credentials, API keys, tokens, or other secrets. A
+custom domain is neither configured nor required.
 
 ## Render backend + managed PostgreSQL
 
@@ -228,14 +233,14 @@ user.
 1. In Render, choose **New → Blueprint** and connect this repository.
 2. Select `render.yaml`. Render creates `world-cup-replay-api` and
    `world-cup-replay-db`.
-3. When prompted for `CORS_ORIGINS`, enter the exact Netlify production origin,
-   such as `https://your-site.netlify.app`.
+3. When prompted for `CORS_ORIGINS`, enter the GitHub Pages browser origin:
+   `https://akshay9192.github.io`. Do not append the repository path.
 4. Confirm `DATABASE_URL` is linked from the managed database; do not copy it
    into a tracked file.
 5. Deploy and wait for `/health` to report `status: ok`, 48 teams, and 104
    matches.
-6. Set Netlify's `REACT_APP_API_BASE` to the Render service origin and trigger a
-   new frontend deploy.
+6. Set the GitHub repository variable `REACT_APP_API_BASE` to the Render service
+   origin and run the Pages workflow.
 7. Optionally add `FOOTBALL_DATA_API_KEY` as a secret Render environment value.
 
 Render supplies `PORT`; the image starts Uvicorn on that value. PostgreSQL holds
@@ -261,6 +266,8 @@ is needed only if you choose to enable optional sync.
   [`docs/AUDIT.md`](docs/AUDIT.md).
 - `.github/workflows/ci.yml` runs backend lint/tests, frontend lint/tests/build,
   and a non-publishing Docker build on pushes and pull requests.
+- `.github/workflows/pages.yml` independently tests, builds, and publishes only
+  the React frontend to GitHub Pages from `main`.
 - `.env`, `frontend/.env.local`, SQLite files, build output, caches,
   `node_modules`, coverage files, and logs are ignored.
 - The ignored database created by an older prototype can contain placeholder

@@ -2,6 +2,7 @@
   "name": "world-cup-2026-replay-frontend",
   "version": "2.0.0",
   "private": true,
+  "homepage": "https://akshay9192.github.io/FIFA-World-Cup-2026---prediction",
   "engines": {
     "node": ">=20 <23"
   },

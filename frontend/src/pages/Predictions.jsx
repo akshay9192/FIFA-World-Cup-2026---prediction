@@ -21,7 +21,7 @@ export default function Predictions() {
 
   return (
     <div className="route-page predictions-page">
-      <header className="route-hero page-shell">
+      <header className="route-hero page-shell" data-reveal="route-hero">
         <p className="section-index">ATLAS INDEX / 02</p><p className="kicker">Recorded result against model probability</p>
         <h1>Every match,<br /><em>three possible stories.</em></h1>
         <p>The score is historical. The probability is the experimental model’s call. Shoot-outs and extra time remain explicitly labelled.</p>
@@ -33,7 +33,7 @@ export default function Predictions() {
         </div>
       </div>
       <section className="page-shell prediction-index" aria-labelledby="match-index-title">
-        <div className="index-heading"><h2 id="match-index-title">Match index</h2><p aria-live="polite">Showing <b>{filtered.length}</b> of {matches.length} matches</p></div>
+        <div className="index-heading" data-reveal="rule"><h2 id="match-index-title">Match index</h2><p aria-live="polite">Showing <b>{filtered.length}</b> of {matches.length} matches</p></div>
         <AsyncState loading={loading} error={!data ? error : ''} empty={!loading && (!matches.length || !filtered.length)} onRetry={retry}>
           <div className="match-list">{filtered.map((match) => <MatchCard key={match.match_id} match={match} />)}</div>
         </AsyncState>

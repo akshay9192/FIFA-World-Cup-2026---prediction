@@ -18,10 +18,11 @@ export default function ReplayServiceStatus() {
   }, [refreshing]);
 
   if (refreshing) {
+    const phase = elapsed < 8 ? 'Warming up prediction engine' : elapsed < 30 ? 'Render instance waking' : 'Loading tournament field';
     return (
       <div className="service-banner is-warming" role="status">
         <div className="page-shell service-banner-inner">
-          <span><b className="status-dot" aria-hidden="true" /> Warming up the prediction engine — free hosting can take up to a minute. <span className="telemetry-time">{elapsed}s elapsed</span></span>
+          <span><b className="status-dot" aria-hidden="true" /><i>LIVE ENGINE</i> <strong>{phase}</strong><span className="service-explainer">Free hosting can take up to a minute.</span><span className="telemetry-time">T+{String(elapsed).padStart(2, '0')}s</span></span>
           <button type="button" onClick={retry}>Retry now</button>
         </div>
       </div>
@@ -31,7 +32,7 @@ export default function ReplayServiceStatus() {
     return (
       <div className="service-banner is-saved" role="alert">
         <div className="page-shell service-banner-inner">
-          <span><b className="status-dot" aria-hidden="true" /> Showing saved replay data. {error}</span>
+          <span><b className="status-dot" aria-hidden="true" /><i>SAVED MODE</i><strong>Showing saved replay data</strong><span className="service-explainer">{error}</span></span>
           <button type="button" onClick={retry}>Retry live service</button>
         </div>
       </div>

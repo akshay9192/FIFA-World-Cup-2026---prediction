@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { clearApiCache } from './api';
@@ -14,6 +14,7 @@ const prediction = {
   actual_score_b: 0, actual_winner: 'Spain', result_source: 'verified result', result_note: 'After extra time',
 };
 const team = { id: 1, name: 'Spain', group_name: 'H', confederation: 'UEFA', strength_rank: 2 };
+const secondTeam = { id: 2, name: 'Argentina', group_name: 'H', confederation: 'CONMEBOL', strength_rank: 3 };
 const meta = {
   title: '2026 World Cup replay dataset', datetime_note: 'Seed times are date markers.',
   last_verified_utc: '2026-07-31T00:00:00Z', model: { limitations: 'Experimental inputs.', method: 'Poisson model.' },
@@ -21,21 +22,37 @@ const meta = {
 const health = { status: 'ok', database: { matches: 1 } };
 const accuracy = { total_predictions: 1, correct: 1, accuracy_percentage: 100, group_stage_accuracy: 0, knockout_accuracy: 100, history: [{ date: '2026-07-19', accuracy: 100, stage: 'final' }] };
 
-beforeEach(() => { window.location.hash = '#/'; clearApiCache(); clearReplaySession(); global.fetch = jest.fn(); });
+beforeEach(() => {
+  window.location.hash = '#/'; clearApiCache(); clearReplaySession(); global.fetch = jest.fn();
+  window.matchMedia.mockImplementation((query) => ({ matches: false, media: query, addEventListener: jest.fn(), removeEventListener: jest.fn() }));
+});
 afterEach(() => { jest.restoreAllMocks(); });
 
 test('renders the atlas, keyboard-operable constellation, and mobile navigation', async () => {
   global.fetch.mockImplementation(liveResponse);
-  const user = userEvent.setup();
   render(<App fallbackData={null} />);
   expect(await screen.findByRole('heading', { name: /Replay the whole field/i })).toBeInTheDocument();
   const teamButtons = await screen.findAllByRole('button', { name: 'Spain, Group H' });
-  await user.click(teamButtons[0]);
+  fireEvent.focus(teamButtons[0]);
   expect(screen.getByRole('link', { name: /Trace match record/ })).toHaveAttribute('href', '#/predictions?team=Spain');
-  await user.click(screen.getByRole('button', { name: 'Open navigation menu' }));
-  expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toHaveClass('is-open');
-  await user.click(screen.getByRole('link', { name: /Predictions/ }));
+  fireEvent.keyDown(teamButtons[0], { key: 'ArrowRight' });
+  expect(screen.getByRole('button', { name: 'Argentina, Group H' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+  expect(screen.getByRole('navigation', { name: 'Primary navigation' }).parentElement).toHaveClass('is-open');
+  fireEvent.click(screen.getByRole('link', { name: /Predictions/ }));
   expect(window.location.hash).toBe('#/predictions');
+});
+
+test('mobile menu locks the page, closes on Escape, and restores trigger focus', async () => {
+  global.fetch.mockImplementation(liveResponse);
+  render(<App fallbackData={null} />);
+  const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
+  fireEvent.click(trigger);
+  expect(document.body).toHaveStyle({ overflow: 'hidden' });
+  expect(screen.getByRole('navigation', { name: 'Primary navigation' }).parentElement).toHaveClass('is-open');
+  fireEvent.keyDown(document, { key: 'Escape' });
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(document.body.style.overflow).toBe('');
 });
 
 test('shows a useful retry state when the backend is unavailable', async () => {
@@ -81,8 +98,8 @@ test('keeps hash navigation responsive while the backend is waking', async () =>
   const rejections = [];
   global.fetch.mockImplementation(() => new Promise((_resolve, reject) => rejections.push(reject)));
   const user = userEvent.setup(); render(<App fallbackData={null} />);
-  expect(screen.getAllByRole('status')[0]).toHaveTextContent('Warming up the prediction engine');
-  await user.click(screen.getByRole('link', { name: /Predictions/ }));
+  expect(screen.getAllByRole('status')[0]).toHaveTextContent(/Warming up prediction engine/i);
+  await user.click(screen.getByRole('link', { name: /Enter the predictions/i }));
   expect(window.location.hash).toBe('#/predictions');
   expect(screen.getByRole('heading', { name: /Every match, three possible stories/i })).toBeInTheDocument();
   expect(global.fetch).toHaveBeenCalledTimes(5);
@@ -108,7 +125,7 @@ test('reuses successful session data immediately on refresh', async () => {
   const rejections = []; global.fetch.mockImplementation(() => new Promise((_resolve, reject) => rejections.push(reject)));
   render(<App fallbackData={null} />);
   expect(screen.getAllByText('Spain').length).toBeGreaterThan(0);
-  expect(screen.getAllByRole('status')[0]).toHaveTextContent('Warming up the prediction engine');
+  expect(screen.getAllByRole('status')[0]).toHaveTextContent(/Warming up prediction engine/i);
   rejections.forEach((reject) => reject(new Error('offline')));
   expect(await screen.findByRole('alert')).toHaveTextContent('Showing saved replay data');
 });
@@ -121,12 +138,21 @@ test('renders bundled fallback data while the live service is unavailable', asyn
   expect(screen.getByRole('button', { name: 'Retry live service' })).toBeInTheDocument();
 });
 
+test('activates the reduced-motion mode without hiding atlas content', async () => {
+  window.matchMedia.mockImplementation((query) => ({ matches: query.includes('prefers-reduced-motion'), media: query, addEventListener: jest.fn(), removeEventListener: jest.fn() }));
+  global.fetch.mockImplementation(liveResponse);
+  render(<App fallbackData={null} />);
+  expect(await screen.findByRole('heading', { name: /Replay the whole field/i })).toBeInTheDocument();
+  await waitFor(() => expect(document.documentElement).toHaveClass('reduced-motion'));
+  expect(await screen.findByRole('img', { name: 'The 48-team Tournament Constellation' })).toBeInTheDocument();
+});
+
 function liveResponse(url) {
   if (url.endsWith('/health')) return Promise.resolve(ok(health));
   if (url.endsWith('/meta')) return Promise.resolve(ok(meta));
   if (url.endsWith('/predictions')) return Promise.resolve(ok([prediction]));
   if (url.endsWith('/accuracy')) return Promise.resolve(ok(accuracy));
-  if (url.endsWith('/teams')) return Promise.resolve(ok([team]));
+  if (url.endsWith('/teams')) return Promise.resolve(ok([team, secondTeam]));
   return Promise.reject(new Error(`unexpected request: ${url}`));
 }
 function ok(payload) { return { ok: true, json: async () => payload }; }

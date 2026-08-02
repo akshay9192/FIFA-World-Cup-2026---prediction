@@ -67,3 +67,33 @@ accuracy story; clear bias-analysis limits; a deliberate Match Not Found page;
 and reduced-density mobile variants. It preserves the custom `HashRouter`, API
 contracts, Create React App repository-subpath build, CI, and GitHub Pages
 workflow.
+
+## Second-pass live visual audit (2026-08-02)
+
+Real-browser captures at 1440×900, 1024×768, 768×1024, 390×844, and 320×568
+showed that the first editorial pass was visually coherent but insufficiently
+interactive:
+
+- At 1440px the hero read as a headline placed beside a finished diagram. The
+  atlas had no entrance choreography, live route movement, pointer depth, or
+  obvious selected-team expansion.
+- At 1024px the responsive breakpoint moved the entire constellation below the
+  fold. The first viewport became an oversized headline with a large inactive
+  right side, so the signature interaction was absent when it mattered most.
+- At 768px the page became a long vertical sequence rather than a deliberately
+  recomposed tablet layout. Section changes depended on background colour, not
+  spatial or motion continuity.
+- At 390px and 320px, long telemetry and kicker lines exceeded the viewport,
+  supporting copy was visibly clipped, and the navigation control was pushed
+  out of view by the wordmark. Primary actions occupied too much vertical space
+  before any tournament content appeared.
+- Across every size, match strips, statistics, chart lines, rules, and headings
+  arrived fully formed. Hover colour changes were the only recurring feedback;
+  there was no coordinated load sequence, scroll rhythm, tactile press language,
+  or football-specific loading motion.
+
+The root cause was a layout-and-motion split: CSS handled static breakpoints,
+while React supplied data, but there was no shared motion lifecycle for route
+entry, viewport visibility, reduced motion, page visibility, pointer depth, or
+observer cleanup. The second pass introduces that lifecycle and recomposes the
+hero and atlas at each breakpoint instead of merely stacking them.

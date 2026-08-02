@@ -2,27 +2,30 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 
 const RouterContext = createContext(null);
 
-function currentHashPath() {
-  const path = window.location.hash.replace(/^#/, '');
-  return path.startsWith('/') ? path : '/';
+function currentHashLocation() {
+  const hash = window.location.hash.replace(/^#/, '');
+  const value = hash.startsWith('/') ? hash : '/';
+  const [path, search = ''] = value.split('?');
+  return { path, search };
 }
 
 export function HashRouter({ children }) {
-  const [path, setPath] = useState(currentHashPath);
+  const [location, setLocation] = useState(currentHashLocation);
   useEffect(() => {
-    const onHashChange = () => setPath(currentHashPath());
+    const onHashChange = () => setLocation(currentHashLocation());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
   const value = useMemo(() => ({
-    path,
+    ...location,
     navigate(to) {
-      if (to === currentHashPath()) return;
+      const current = `${currentHashLocation().path}${currentHashLocation().search ? `?${currentHashLocation().search}` : ''}`;
+      if (to === current) return;
       window.location.hash = to;
-      setPath(to);
+      setLocation(currentHashLocation());
       window.scrollTo?.(0, 0);
     },
-  }), [path]);
+  }), [location]);
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
 }
 

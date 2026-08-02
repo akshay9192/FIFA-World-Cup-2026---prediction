@@ -1,27 +1,41 @@
-# World Cup 2026 Replay & What-if Simulator
+# The Tournament Atlas — World Cup 2026 prediction study
 
-> Replay the 2026 World Cup, compare the model with actual outcomes, and
-> explore alternative predictions.
+> A living editorial map of 48 teams, 104 matches, prediction paths,
+> uncertainty, accuracy, and model blind spots.
 
 This is an independent experimental fan project. It is not affiliated with or
 endorsed by FIFA. The interface uses original styling and includes no FIFA
 logos, photography, video, or tournament artwork.
 
-The application is a React single-page app backed by FastAPI. It ships with an
+The application is a React single-page app backed by FastAPI. Its original
+“Tournament Atlas” interface combines a tournament programme, tactical board,
+and transparent model report without relying on stock imagery or a third-party
+animation runtime. It ships with an
 offline, idempotent 104-match historical replay seed, uses SQLite for local
 development, supports PostgreSQL through `DATABASE_URL`, and can optionally
 sync football-data.org results when an API key is configured.
 
 ## What you can explore
 
-- A responsive tournament replay dashboard and all historical results.
+- A keyboard-operable SVG tournament constellation structured as 12 groups of
+  four, with a reduced-density group navigator on small screens.
+- A responsive editorial tournament narrative and all historical results.
 - Experimental pre-match-style probabilities beside recorded outcomes.
 - Team title-probability rankings from an explicit, cached simulation.
 - Group-stage, knockout, and running outcome accuracy.
 - A “What would you have predicted?” game that hides the result until a pick
   is locked.
 - Plain-language methodology, limitations, data source, and update metadata.
-- Loading, empty, retry, offline-backend, and 404 experiences.
+- Loading, empty, retry, saved-data, offline-backend, and “Match Not Found”
+  experiences.
+- Live `/health` telemetry and elapsed cold-start feedback. Render free services
+  can sleep; the interface explains that waking may take 30–60 seconds and stays
+  navigable while the request is pending.
+
+The frontend bundles a deterministic read-only replay snapshot and refreshes it
+from the live API in the background. If the external service is unavailable,
+the saved story remains usable and is labelled as such; live write actions such
+as bias submissions and fresh simulations still require the API.
 
 ## Data integrity
 
@@ -179,6 +193,7 @@ Run from the repository root:
 .\.venv\Scripts\python.exe -m ruff check backend scripts
 .\.venv\Scripts\python.exe -m pytest backend\tests -q
 npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run lint
 npm.cmd --prefix frontend test -- --watchAll=false
 $env:REACT_APP_API_BASE="https://api.example.invalid"
 npm.cmd --prefix frontend run build
@@ -188,7 +203,16 @@ The backend tests create an isolated temporary SQLite database and cover health,
 metadata, teams, predictions, invalid IDs and bodies, accuracy, bias, manual
 results, recalibration, simulation caching, and offline sync behaviour. Frontend
 tests cover direct routing, 404 handling, backend failure/retry UI, responsive
-navigation, and a successful data render.
+navigation, cold-start messaging, retry behavior, team deep links, the
+keyboard-accessible constellation, chart alternatives, and a successful data
+render.
+
+Regenerate the deterministic frontend replay snapshot after intentional model or
+seed changes with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\export_frontend_fallback.py
+```
 
 ## GitHub Pages frontend deployment
 

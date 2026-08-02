@@ -1,138 +1,121 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { api, formatPercent } from '../api';
 import AsyncState from '../components/AsyncState';
 import MatchCard from '../components/MatchCard';
+import TournamentConstellation from '../components/TournamentConstellation';
+import { useReplayData } from '../data/ReplayDataContext';
 import { Link } from '../router';
 
 export default function Dashboard() {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const { data, error, loading, refreshing, retry, source } = useReplayData();
   const [rankings, setRankings] = useState([]);
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [meta, predictions, accuracy] = await Promise.all([
-        api('/meta'),
-        api('/predictions'),
-        api('/accuracy'),
-      ]);
-      setData({ meta, predictions, accuracy });
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
   async function runSimulation() {
     setSimLoading(true);
     setSimError('');
-    try {
-      setRankings(await api('/tournament/simulate?iterations=1000'));
-    } catch (requestError) {
-      setSimError(requestError.message);
-    } finally {
-      setSimLoading(false);
-    }
+    try { setRankings(await api('/tournament/simulate?iterations=1000')); }
+    catch (requestError) { setSimError(requestError.message); }
+    finally { setSimLoading(false); }
   }
 
-  const final = data?.predictions.find((match) => match.stage === 'final');
-  const featured = data?.predictions.filter((match) => ['final', 'sf'].includes(match.stage)).slice(-3).reverse() || [];
+  const final = data?.predictions?.find((match) => match.stage === 'final');
+  const featured = data?.predictions?.filter((match) => ['final', 'sf'].includes(match.stage)).slice(-3).reverse() || [];
+  const accuracy = data?.accuracy;
+
   return (
     <>
-      <section className="hero-grid border-b border-white/10">
-        <div className="page-shell grid gap-10 py-14 sm:py-20 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
-          <div>
-            <p className="eyebrow">The tournament is complete</p>
-            <h1 className="page-title">Replay 2026. Compare the model. Change the call.</h1>
-            <p className="lead">Explore every result, see where an experimental prediction model agreed with reality, and make your own hindsight-free picks.</p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/predictions" className="button-primary">Replay all 104 matches</Link>
-              <Link to="/bias" className="button-secondary">Make your prediction</Link>
+      <section className="atlas-hero">
+        <div className="hero-registration" aria-hidden="true">ATL / 2026 / 001</div>
+        <div className="page-shell hero-layout">
+          <div className="hero-copy">
+            <p className="kicker">An interactive prediction study · 48 teams · 104 matches</p>
+            <h1>Replay the<br /><em>whole field.</em></h1>
+            <p className="hero-deck">The Tournament Atlas maps every team, model call and uncertain route through the 2026 competition — a simulation project, not an official FIFA product.</p>
+            <div className="hero-actions">
+              <Link to="/predictions" className="button-primary">Enter the predictions <span aria-hidden="true">↗</span></Link>
+              <Link to="/about" className="button-secondary">How the model reads a match</Link>
+            </div>
+            <div className="hero-telemetry" aria-live="polite">
+              <span className={`status-dot ${refreshing ? 'is-warming' : ''}`} aria-hidden="true" />
+              <b>{refreshing ? 'ENGINE WARMING' : source === 'live' ? 'ENGINE ONLINE' : 'SAVED FIELD'}</b>
+              <span>{data?.predictions?.length || 0} matches loaded</span>
             </div>
           </div>
-          <div className="panel border-gold-400/20 bg-gold-400/[0.06]">
-            <p className="eyebrow text-gold-300">Final result</p>
-            {final ? (
-              <>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <strong className="text-xl sm:text-2xl">{final.team_a}</strong>
-                  <span className="rounded-xl bg-ink-950 px-4 py-3 text-2xl font-black">{final.actual_score_a}–{final.actual_score_b}</span>
-                  <strong className="text-xl sm:text-2xl">{final.team_b}</strong>
-                </div>
-                <p className="mt-4 text-center text-sm text-gold-300">{final.result_note}</p>
-              </>
-            ) : <p className="mt-4 text-slate-400">Final data will appear when the replay seed is available.</p>}
+          <div className="hero-visual"><TournamentConstellation teams={data?.teams || []} /></div>
+        </div>
+        <a className="scroll-cue" href="#field"><span>Scroll the atlas</span><i aria-hidden="true" /></a>
+      </section>
+
+      <section id="field" className="editorial-section paper-section">
+        <div className="page-shell split-intro">
+          <p className="section-index">01 / THE FIELD</p>
+          <div><h2>More teams.<br />More routes.<br /><em>More uncertainty.</em></h2></div>
+          <div className="body-column">
+            <p>The 48-team field begins as twelve groups of four. The atlas keeps that structure visible: predictions are never detached from the route that makes them possible.</p>
+            <dl className="scale-ledger">
+              <div><dt>Teams</dt><dd>48</dd></div><div><dt>Groups</dt><dd>12</dd></div><div><dt>Matches</dt><dd>{data?.predictions?.length || 104}</dd></div>
+            </dl>
           </div>
         </div>
       </section>
 
-      <section className="page-section">
-        <AsyncState loading={loading} error={error} empty={data && !data.predictions.length} onRetry={load}>
-          {data && (
-            <div className="space-y-12">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="panel"><p className="text-sm text-slate-400">Historical matches</p><p className="stat-value">{data.predictions.length}</p></div>
-                <div className="panel"><p className="text-sm text-slate-400">Model outcome accuracy</p><p className="stat-value">{data.accuracy.accuracy_percentage.toFixed(1)}%</p></div>
-                <div className="panel"><p className="text-sm text-slate-400">Correct outcome calls</p><p className="stat-value">{data.accuracy.correct}<span className="text-lg text-slate-500"> / {data.accuracy.total_predictions}</span></p></div>
-              </div>
+      <section className="editorial-section dark-section">
+        <div className="page-shell">
+          <header className="section-header"><p className="section-index">02 / PREDICTED PATHS</p><h2>The decisive<br />match strip.</h2><Link className="text-link" to="/predictions">Open all match records →</Link></header>
+          <AsyncState loading={loading} error={!data ? error : ''} empty={data && !data.predictions.length} onRetry={retry}>
+            <div className="featured-strip">{featured.map((match, index) => <MatchCard key={match.match_id} match={match} compact sequence={String(index + 1).padStart(2, '0')} />)}</div>
+          </AsyncState>
+          {final && <p className="editor-note"><span>Recorded final</span>{final.team_a} {final.actual_score_a}–{final.actual_score_b} {final.team_b}{final.result_note ? ` · ${final.result_note}` : ''}</p>}
+        </div>
+      </section>
 
-              <section aria-labelledby="decisive-matches">
-                <div className="mb-5 flex items-end justify-between gap-4">
-                  <div><p className="eyebrow">Replay highlights</p><h2 id="decisive-matches" className="mt-2 text-2xl font-black">The decisive matches</h2></div>
-                  <Link to="/predictions" className="text-sm font-bold text-mint-300 hover:text-mint-400">See every match</Link>
-                </div>
-                <div className="grid gap-4 lg:grid-cols-3">{featured.map((match) => <MatchCard key={match.match_id} match={match} compact />)}</div>
-              </section>
-
-              <section className="panel" aria-labelledby="rankings-title">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                  <div>
-                    <p className="eyebrow">What-if simulator</p>
-                    <h2 id="rankings-title" className="mt-2 text-2xl font-black">Model title-probability rankings</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Run 1,000 experimental tournament paths on demand. Results are cached for 15 minutes and are not official odds.</p>
-                  </div>
-                  <button className="button-primary shrink-0" type="button" onClick={runSimulation} disabled={simLoading}>
-                    {simLoading ? 'Running simulation…' : rankings.length ? 'Run again' : 'Run simulation'}
-                  </button>
-                </div>
-                {simError && <p className="mt-5 text-sm text-rose-300" role="alert">{simError}</p>}
-                {rankings.length > 0 && (
-                  <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {rankings.slice(0, 8).map((team, index) => (
-                      <li key={team.team} className="rounded-xl border border-white/10 bg-ink-950 p-4">
-                        <div className="flex items-center justify-between gap-3"><strong>{index + 1}. {team.team}</strong><span className="text-mint-300">{formatPercent(team.win_probability, 1)}</span></div>
-                        <div className="mt-3 h-1.5 overflow-hidden rounded bg-white/10"><div className="h-full bg-mint-400" style={{ width: formatPercent(team.win_probability) }} /></div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </section>
-
-              <section className="grid gap-5 lg:grid-cols-2">
-                <div className="panel">
-                  <p className="eyebrow">Data provenance</p>
-                  <h2 className="mt-2 text-xl font-black">{data.meta.title}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{data.meta.datetime_note}</p>
-                  <p className="mt-3 text-xs text-slate-500">Last verified: {data.meta.last_verified_utc.slice(0, 10)}</p>
-                </div>
-                <div className="panel">
-                  <p className="eyebrow">Use with perspective</p>
-                  <h2 className="mt-2 text-xl font-black">Experimental, not official</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{data.meta.model.limitations}</p>
-                  <Link className="mt-4 inline-block text-sm font-bold text-mint-300" to="/about">Read the methodology and limitations</Link>
-                </div>
-              </section>
+      <section className="editorial-section confidence-section">
+        <div className="page-shell confidence-layout">
+          <div className="sticky-note"><p className="section-index">03 / CONFIDENCE</p><span>Probability is a distribution,<br />not a promise.</span></div>
+          <div className="confidence-copy">
+            <h2>Confidence is<br /><em>not certainty.</em></h2>
+            <p>A 60% call still leaves four outcomes in ten pointing elsewhere. The interface shows all three outcome probabilities so the model’s hesitation stays visible.</p>
+            <div className="probability-demo" aria-label="Example probability distribution: home win 54 percent, draw 24 percent, away win 22 percent">
+              <div style={{ '--share': 54 }}><span>HOME</span><strong>54%</strong></div>
+              <div style={{ '--share': 24 }}><span>DRAW</span><strong>24%</strong></div>
+              <div style={{ '--share': 22 }}><span>AWAY</span><strong>22%</strong></div>
             </div>
-          )}
-        </AsyncState>
+            <p className="caption">Illustrative explanation only — not a recorded match.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="editorial-section paper-section measure-section">
+        <div className="page-shell measure-layout">
+          <div><p className="section-index">04 / MEASURING THE MODEL</p><h2>{accuracy ? `${accuracy.accuracy_percentage.toFixed(1)}%` : '—'}</h2><p className="oversize-label">recorded outcome accuracy</p></div>
+          <div className="rule-copy"><p>“Correct” means the model’s most likely outcome matched the recorded winner or draw. It does not mean the scoreline was exact or the probabilities were calibrated.</p><Link className="ink-link" to="/accuracy">Read the accuracy story →</Link></div>
+          <div className="accuracy-tally" aria-label={accuracy ? `${accuracy.correct} correct calls from ${accuracy.total_predictions}` : 'Accuracy unavailable'}>
+            {Array.from({ length: Math.min(accuracy?.total_predictions || 0, 104) }, (_, index) => <i key={index} className={index < (accuracy?.correct || 0) ? 'is-correct' : ''} />)}
+          </div>
+        </div>
+      </section>
+
+      <section className="editorial-section bias-teaser">
+        <div className="page-shell bias-teaser-grid">
+          <p className="section-index">05 / BLIND SPOTS</p>
+          <blockquote>“What changes when the person making the prediction already wants one side to win?”</blockquote>
+          <div><p>The bias lab records confidence and emotional investment alongside a user pick. It is a comparison tool, not a fairness audit or psychological diagnosis.</p><Link className="button-primary" to="/bias">Test your own call</Link></div>
+        </div>
+      </section>
+
+      <section className="editorial-section simulator-section">
+        <div className="page-shell simulator-grid">
+          <div><p className="section-index">06 / REPLAY THE ROUTE</p><h2>One thousand paths.<br />No official odds.</h2><p>Run the existing model through 1,000 experimental tournament paths. Results are cached for fifteen minutes.</p><button className="button-primary" type="button" onClick={runSimulation} disabled={simLoading}>{simLoading ? 'Tracing tournament paths…' : rankings.length ? 'Run another 1,000' : 'Run 1,000 paths'}</button>{simError && <p role="alert" className="inline-error">{simError}</p>}</div>
+          <ol className="ranking-board" aria-live="polite">
+            {rankings.length ? rankings.slice(0, 8).map((team, index) => <li key={team.team}><span>{String(index + 1).padStart(2, '0')}</span><strong>{team.team}</strong><i style={{ '--probability': `${team.win_probability * 100}%` }} /><b>{formatPercent(team.win_probability, 1)}</b></li>) : <li className="ranking-placeholder">The live ranking board appears after a simulation.</li>}
+          </ol>
+        </div>
+      </section>
+
+      <section className="final-whistle">
+        <div className="page-shell"><p className="section-index">FINAL WHISTLE</p><h2>The score is fixed.<br /><em>The reading is yours.</em></h2><div><Link className="button-primary" to="/predictions">Explore every prediction</Link><Link className="button-secondary" to="/about">Read the limitations</Link></div></div>
       </section>
     </>
   );

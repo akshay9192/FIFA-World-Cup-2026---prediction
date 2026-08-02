@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from threading import RLock
 from typing import Any
 
 from fastapi import HTTPException
@@ -14,21 +16,78 @@ predictor = WorldCupPredictor()
 class PredictionService:
     def __init__(self) -> None:
         self.predictor = predictor
+        self._cache: list[dict[str, Any]] | None = None
+        self._cache_lock = RLock()
 
-    def get_all_predictions(self, db: Session) -> list[dict[str, Any]]:
-        matches = (
-            db.query(Match)
-            .filter(Match.actual_winner.isnot(None))
-            .order_by(Match.match_date.asc())
-            .all()
+    def get_all_predictions(
+        self, db: Session, *, force: bool = False
+    ) -> list[dict[str, Any]]:
+        if self._cache is not None and not force:
+            return deepcopy(self._cache)
+        with self._cache_lock:
+            if self._cache is not None and not force:
+                return deepcopy(self._cache)
+            matches = (
+                db.query(Match)
+                .filter(
+                    Match.external_id.like("wc26-%"),
+                    Match.actual_winner.isnot(None),
+                )
+                .order_by(Match.match_date.asc())
+                .all()
+            )
+            team_names = {
+                name for match in matches for name in (match.team_a, match.team_b)
+            }
+            teams = db.query(Team).filter(Team.name.in_(team_names)).all()
+            team_by_name = {team.name: team for team in teams}
+            predictions = [
+                self._prediction_for_match(match, team_by_name) for match in matches
+            ]
+            self._cache = predictions
+            return deepcopy(predictions)
+
+    def ensure_predictions(self, db: Session) -> None:
+        if self._cache is not None:
+            return
+        missing = (
+            db.query(Match.id)
+            .filter(
+                Match.external_id.like("wc26-%"),
+                Match.actual_winner.isnot(None),
+                Match.predicted_winner.is_(None),
+            )
+            .first()
         )
-        return [self._prediction_for_match(db, match) for match in matches]
+        if missing:
+            self.get_all_predictions(db)
+
+    def invalidate_cache(self) -> None:
+        with self._cache_lock:
+            self._cache = None
 
     def get_match_prediction(self, db: Session, match_id: int) -> dict[str, Any]:
         match = db.query(Match).filter(Match.id == match_id).first()
         if not match:
             raise HTTPException(status_code=404, detail="Match not found")
-        pred = self._prediction_for_match(db, match)
+        cached = next(
+            (
+                item
+                for item in self.get_all_predictions(db)
+                if item["match_id"] == match_id
+            ),
+            None,
+        )
+        if cached is None:
+            teams = (
+                db.query(Team)
+                .filter(Team.name.in_({match.team_a, match.team_b}))
+                .all()
+            )
+            cached = self._prediction_for_match(
+                match, {team.name: team for team in teams}
+            )
+        pred = cached
         bias = db.query(BiasLog).filter(BiasLog.match_id == match.id).order_by(BiasLog.created_at.desc()).first()
         if bias:
             gut = self._gut_from_prediction(match, bias.user_prediction)
@@ -44,9 +103,11 @@ class PredictionService:
         last = db.query(Match).filter(Match.actual_winner.isnot(None), Match.result_source.isnot(None)).count()
         return last >= 5 and last % 5 == 0
 
-    def _prediction_for_match(self, db: Session, match: Match) -> dict[str, Any]:
-        team_a = db.query(Team).filter(Team.name == match.team_a).first()
-        team_b = db.query(Team).filter(Team.name == match.team_b).first()
+    def _prediction_for_match(
+        self, match: Match, team_by_name: dict[str, Team]
+    ) -> dict[str, Any]:
+        team_a = team_by_name.get(match.team_a)
+        team_b = team_by_name.get(match.team_b)
         if not team_a or not team_b:
             raise HTTPException(status_code=422, detail=f"Missing team data for {match.team_a} vs {match.team_b}")
         prediction = self.predictor.predict_match(team_a, team_b, {"stage": match.stage})

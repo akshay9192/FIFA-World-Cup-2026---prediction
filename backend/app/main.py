@@ -4,6 +4,8 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from functools import lru_cache
+from threading import RLock
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -36,6 +38,7 @@ async def lifespan(_: FastAPI):
 
     with SessionLocal() as db:
         seed_replay_data(db)
+    invalidate_replay_caches(include_simulation=True)
     yield
 
 
@@ -65,7 +68,18 @@ app.add_middleware(
 prediction_service = PredictionService()
 recalibration_service = RecalibrationService()
 bias_service = BiasService()
-_simulation_cache: dict[str, Any] = {"expires": 0.0, "iterations": None, "value": None}
+_teams_cache: list[dict[str, Any]] | None = None
+_teams_cache_lock = RLock()
+_simulation_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+_simulation_cache_lock = RLock()
+
+
+def invalidate_replay_caches(*, include_simulation: bool = False) -> None:
+    prediction_service.invalidate_cache()
+    recalibration_service.invalidate_cache()
+    if include_simulation:
+        with _simulation_cache_lock:
+            _simulation_cache.clear()
 
 
 @app.get("/health")
@@ -86,6 +100,7 @@ def health(db: Session = Depends(get_db)) -> dict[str, Any]:
 
 
 @app.get("/meta")
+@lru_cache(maxsize=1)
 def metadata() -> dict[str, Any]:
     return {
         **dataset_metadata(),
@@ -100,9 +115,23 @@ def metadata() -> dict[str, Any]:
 
 
 @app.get("/teams", response_model=list[TeamResponse])
-def teams(db: Session = Depends(get_db)) -> list[Team]:
-    replay_team_names = [item["name"] for item in load_dataset()["teams"]]
-    return db.query(Team).filter(Team.name.in_(replay_team_names)).order_by(Team.group_name, Team.name).all()
+def teams(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    global _teams_cache
+    if _teams_cache is not None:
+        return _teams_cache
+    with _teams_cache_lock:
+        if _teams_cache is None:
+            replay_team_names = [item["name"] for item in load_dataset()["teams"]]
+            rows = (
+                db.query(Team)
+                .filter(Team.name.in_(replay_team_names))
+                .order_by(Team.group_name, Team.name)
+                .all()
+            )
+            _teams_cache = [
+                TeamResponse.model_validate(team).model_dump() for team in rows
+            ]
+    return _teams_cache
 
 
 @app.get("/predictions", response_model=list[PredictionResponse])
@@ -152,9 +181,11 @@ def post_manual_result(request: ManualResultRequest, db: Session = Depends(get_d
             "recalibration_triggered": False,
         }
         if should_recalibrate:
+            recalibration_service.invalidate_cache()
             payload["recalibration"] = recalibration_service.run(db)
             payload["recalibration_triggered"] = True
         db.commit()
+        invalidate_replay_caches(include_simulation=should_recalibrate)
         return payload
     except HTTPException:
         db.rollback()
@@ -177,8 +208,11 @@ def sync_results() -> dict[str, Any]:
 @app.post("/recalibrate", response_model=RecalibrationResponse)
 def recalibrate(db: Session = Depends(get_db)) -> dict[str, Any]:
     try:
+        prediction_service.get_all_predictions(db)
         result = recalibration_service.run(db)
+        prediction_service.get_all_predictions(db, force=True)
         db.commit()
+        invalidate_replay_caches(include_simulation=True)
         return result
     except Exception:
         db.rollback()
@@ -188,9 +222,9 @@ def recalibrate(db: Session = Depends(get_db)) -> dict[str, Any]:
 
 @app.get("/accuracy", response_model=AccuracyResponse)
 def accuracy(db: Session = Depends(get_db)) -> dict[str, Any]:
-    prediction_service.get_all_predictions(db)
+    predictions = prediction_service.get_all_predictions(db)
     db.commit()
-    return recalibration_service.calculate_accuracy(db)
+    return recalibration_service.calculate_accuracy_from_predictions(predictions)
 
 
 @app.get("/tournament/simulate", response_model=list[SimulationResponse])
@@ -200,24 +234,24 @@ def simulate(
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
     now = time.monotonic()
-    if (
-        not refresh
-        and _simulation_cache["value"] is not None
-        and _simulation_cache["iterations"] == iterations
-        and _simulation_cache["expires"] > now
-    ):
-        return _simulation_cache["value"]
-    replay_team_names = [item["name"] for item in load_dataset()["teams"]]
-    all_teams = db.query(Team).filter(Team.name.in_(replay_team_names)).all()
-    matches = db.query(Match).filter(Match.external_id.like("wc26-%")).all()
-    simulation = predictor.simulate_tournament(all_teams, matches, iterations)
-    result = sorted(
-        [{"team": team, **values} for team, values in simulation.items()],
-        key=lambda row: row["win_probability"],
-        reverse=True,
-    )
-    _simulation_cache.update({"expires": now + 900, "iterations": iterations, "value": result})
-    return result
+    cached = _simulation_cache.get(iterations)
+    if not refresh and cached and cached[0] > now:
+        return cached[1]
+    with _simulation_cache_lock:
+        cached = _simulation_cache.get(iterations)
+        if not refresh and cached and cached[0] > time.monotonic():
+            return cached[1]
+        replay_team_names = [item["name"] for item in load_dataset()["teams"]]
+        all_teams = db.query(Team).filter(Team.name.in_(replay_team_names)).all()
+        matches = db.query(Match).filter(Match.external_id.like("wc26-%")).all()
+        simulation = predictor.simulate_tournament(all_teams, matches, iterations)
+        result = sorted(
+            [{"team": team, **values} for team, values in simulation.items()],
+            key=lambda row: row["win_probability"],
+            reverse=True,
+        )
+        _simulation_cache[iterations] = (time.monotonic() + 900, result)
+        return result
 
 
 @app.get("/bias")

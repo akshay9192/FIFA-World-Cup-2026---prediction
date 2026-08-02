@@ -124,6 +124,16 @@ class WorldCupPredictor:
         iterations = min(max(iterations, 100), 5000)
         counts = {self._team_name(t): defaultdict(int) for t in teams}
         team_by_name = {self._team_name(t): t for t in teams}
+        prediction_cache: dict[tuple[str, str], dict[str, Any]] = {}
+
+        def predict_cached(a: str, b: str) -> dict[str, Any]:
+            key = (a, b)
+            if key not in prediction_cache:
+                prediction_cache[key] = self.predict_match(
+                    team_by_name[a], team_by_name[b], {}
+                )
+            return prediction_cache[key]
+
         group_map: dict[str, list[str]] = defaultdict(list)
         for team in teams:
             group_map[getattr(team, "group_name", None) or team.get("group_name") or "All"].append(self._team_name(team))
@@ -134,7 +144,7 @@ class WorldCupPredictor:
                 a, b = match.team_a, match.team_b
                 if a not in team_by_name or b not in team_by_name:
                     continue
-                res = self.predict_match(team_by_name[a], team_by_name[b], {})
+                res = predict_cached(a, b)
                 score_a = self._sample_poisson(res["predicted_score_a"])
                 score_b = self._sample_poisson(res["predicted_score_b"])
                 standings[a]["gf"] += score_a
@@ -165,7 +175,15 @@ class WorldCupPredictor:
                     if i + 1 >= len(alive):
                         next_round.append(alive[i])
                         continue
-                    winner = self._simulate_knockout(team_by_name[alive[i]], team_by_name[alive[i + 1]])
+                    first = alive[i]
+                    second = alive[i + 1]
+                    pred = predict_cached(first, second)
+                    draw_split = pred["draw_prob"] / 2.0
+                    winner = (
+                        first
+                        if random.random() < pred["win_prob_a"] + draw_split
+                        else second
+                    )
                     next_round.append(winner)
                 alive = next_round
                 if len(alive) == 4:

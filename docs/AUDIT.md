@@ -44,3 +44,26 @@ dependency configuration.
 The offline dataset deliberately stores noon UTC as a date marker because the
 source does not expose exact kick-off timestamps consistently. The UI renders
 the verified match date rather than suggesting that noon UTC was the kick-off.
+
+## Editorial redesign audit (2026-08-02)
+
+The second audit found a functional application whose visual system relied on
+the same rounded translucent panel for almost every kind of content. The home
+page did not communicate the 48-team tournament structure, accuracy bars had no
+useful programmatic explanation, and match probabilities were visually compact
+but disconnected from tournament routes. The mobile menu also contained
+mis-encoded glyphs in its control label.
+
+The browser requested metadata, predictions, and accuracy in parallel but did
+not check `/health`, so service telemetry could not distinguish a healthy API
+from a missing backend root route. A Render cold start looked like an indefinite
+loading panel with no elapsed feedback. The existing in-progress cache and
+bundled-fallback work has been retained and extended to include `/health` and
+the 48-team `/teams` response.
+
+The redesign introduces the original “Tournament Atlas” system: a structured,
+keyboard-operable group constellation; editorial match strips; a labelled SVG
+accuracy story; clear bias-analysis limits; a deliberate Match Not Found page;
+and reduced-density mobile variants. It preserves the custom `HashRouter`, API
+contracts, Create React App repository-subpath build, CI, and GitHub Pages
+workflow.

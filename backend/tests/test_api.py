@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
+from unittest.mock import patch
 
-from backend.app.main import app
+from fastapi.testclient import TestClient
+from sqlalchemy import event
+
+from backend.app.database import engine
+from backend.app.main import app, prediction_service, recalibration_service
 from backend.app.seed import load_dataset
 
 
@@ -77,6 +81,55 @@ def test_prediction_accuracy_and_team_flows() -> None:
         accuracy = client.get("/accuracy")
         assert accuracy.status_code == 200
         assert accuracy.json()["total_predictions"] == 104
+
+
+def test_prediction_generation_uses_bulk_match_and_team_queries() -> None:
+    statements: list[str] = []
+
+    def record_statement(
+        _connection, _cursor, statement, _parameters, _context, _executemany
+    ) -> None:
+        statements.append(" ".join(statement.lower().split()))
+
+    with TestClient(app) as client:
+        prediction_service.invalidate_cache()
+        recalibration_service.invalidate_cache()
+        event.listen(engine, "before_cursor_execute", record_statement)
+        try:
+            response = client.get("/predictions")
+        finally:
+            event.remove(engine, "before_cursor_execute", record_statement)
+
+    assert response.status_code == 200
+    assert len(response.json()) == 104
+    match_queries = [
+        statement for statement in statements if " from matches " in statement
+    ]
+    team_queries = [
+        statement for statement in statements if " from teams " in statement
+    ]
+    assert len(match_queries) == 1
+    assert len(team_queries) == 1
+
+
+def test_accuracy_reuses_predictions_already_generated() -> None:
+    with TestClient(app) as client:
+        prediction_service.invalidate_cache()
+        recalibration_service.invalidate_cache()
+        with patch.object(
+            prediction_service.predictor,
+            "predict_match",
+            wraps=prediction_service.predictor.predict_match,
+        ) as predict_match:
+            predictions = client.get("/predictions")
+            calls_after_predictions = predict_match.call_count
+            accuracy = client.get("/accuracy")
+
+    assert predictions.status_code == 200
+    assert calls_after_predictions == 104
+    assert accuracy.status_code == 200
+    assert accuracy.json()["total_predictions"] == 104
+    assert predict_match.call_count == calls_after_predictions
 
 
 def test_bias_manual_result_recalibration_and_validation() -> None:

@@ -2,12 +2,5 @@ import React from 'react';
 import { Link } from '../router';
 
 export default function NotFound() {
-  return (
-    <section className="page-section py-24 text-center">
-      <p className="eyebrow">404 · Off the pitch</p>
-      <h1 className="page-title mx-auto">That replay route does not exist.</h1>
-      <p className="lead mx-auto">Return to the tournament overview and pick up the story from there.</p>
-      <Link className="button-primary mt-7" to="/">Back to the replay</Link>
-    </section>
-  );
+  return <section className="not-found page-shell"><div className="lost-ball" aria-hidden="true"><span>404</span></div><div><p className="section-index">MATCH NOT FOUND / 404</p><h1>This route left<br /><em>the field.</em></h1><p>The match plan ends here. Return to the Tournament Atlas and pick up the story from the opening whistle.</p><Link className="button-primary" to="/">Return to the atlas</Link></div></section>;
 }

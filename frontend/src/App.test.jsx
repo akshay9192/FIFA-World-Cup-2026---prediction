@@ -49,7 +49,9 @@ test('mobile menu locks the page, closes on Escape, and restores trigger focus',
   const trigger = screen.getByRole('button', { name: 'Open navigation menu' });
   fireEvent.click(trigger);
   expect(document.body).toHaveStyle({ overflow: 'hidden' });
-  expect(screen.getByRole('navigation', { name: 'Primary navigation' }).parentElement).toHaveClass('is-open');
+  const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+  expect(navigation.parentElement).toHaveClass('is-open');
+  await waitFor(() => expect(navigation.querySelector('a')).toHaveFocus());
   fireEvent.keyDown(document, { key: 'Escape' });
   await waitFor(() => expect(trigger).toHaveFocus());
   expect(document.body.style.overflow).toBe('');

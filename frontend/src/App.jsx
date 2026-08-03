@@ -27,8 +27,7 @@ function Navigation({ chapter }) {
     if (!open) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const first = panelRef.current?.querySelector('a');
-    first?.focus();
+    const focusFrame = window.requestAnimationFrame(() => panelRef.current?.querySelector('a')?.focus());
     const keydown = (event) => {
       if (event.key === 'Escape') close(true);
       if (event.key === 'Tab') {
@@ -39,7 +38,7 @@ function Navigation({ chapter }) {
       }
     };
     document.addEventListener('keydown', keydown);
-    return () => { document.body.style.overflow = previous; document.removeEventListener('keydown', keydown); };
+    return () => { window.cancelAnimationFrame(focusFrame); document.body.style.overflow = previous; document.removeEventListener('keydown', keydown); };
   }, [close, open]);
 
   return (

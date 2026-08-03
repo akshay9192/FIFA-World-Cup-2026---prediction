@@ -97,3 +97,13 @@ while React supplied data, but there was no shared motion lifecycle for route
 entry, viewport visibility, reduced motion, page visibility, pointer depth, or
 observer cleanup. The second pass introduces that lifecycle and recomposes the
 hero and atlas at each breakpoint instead of merely stacking them.
+
+Post-implementation production-build QA found one further breakpoint issue: the
+first 1024px composition allowed the atlas to cover the headline, while the
+tablet and mobile atlas retained desktop intrinsic widths. That made controls
+appear clipped in physical-pixel screenshots even though the document itself
+was clipped at the root. The final rules now give 821–1180px its own split-stage
+geometry, switch 768px and smaller screens to the compact touch atlas, constrain
+every atlas grid track with `minmax(0, 1fr)`, and stack the two hero actions at
+phone widths. Browser device emulation confirmed equal client and scroll widths
+at 1440, 1024, 768, 390, and 320 CSS pixels.

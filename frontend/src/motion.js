@@ -27,9 +27,10 @@ export function useMotionSystem(path, onChapter) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('reduced-motion', reduced);
+    const countFrames = new Set();
     const reveal = (node) => {
       node.classList.add('is-visible');
-      if (node.hasAttribute('data-count')) animateCount(node);
+      if (node.hasAttribute('data-count')) animateCount(node, reduced, countFrames);
     };
     const observer = !reduced && 'IntersectionObserver' in window
       ? new IntersectionObserver((entries) => entries.forEach((entry) => {
@@ -76,6 +77,8 @@ export function useMotionSystem(path, onChapter) {
       observer?.disconnect(); mutations.disconnect();
       window.removeEventListener('scroll', scheduleReveal); window.removeEventListener('resize', scheduleReveal);
       if (revealFrame) cancelAnimationFrame(revealFrame);
+      countFrames.forEach((countFrame) => cancelAnimationFrame(countFrame));
+      countFrames.clear();
     };
   }, [path, reduced]);
 
@@ -116,18 +119,27 @@ export function useMotionSystem(path, onChapter) {
   return reduced;
 }
 
-function animateCount(node) {
+function animateCount(node, immediate = false, frames = new Set()) {
   const target = Number(node.dataset.count);
   if (!Number.isFinite(target) || node.dataset.counted) return;
   node.dataset.counted = 'true';
   const decimals = Number(node.dataset.decimals || 0);
   const suffix = node.dataset.suffix || '';
+  const finish = () => { node.textContent = `${target.toFixed(decimals)}${suffix}`; };
+  if (immediate || document.visibilityState === 'hidden') { finish(); return; }
   const started = performance.now();
+  let frame = 0;
+  const schedule = () => {
+    frame = requestAnimationFrame(tick);
+    frames.add(frame);
+  };
   const tick = (now) => {
+    frames.delete(frame);
     const progress = Math.min((now - started) / motion.editorial, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
     node.textContent = `${(target * eased).toFixed(decimals)}${suffix}`;
-    if (progress < 1 && document.visibilityState !== 'hidden') requestAnimationFrame(tick);
+    if (document.visibilityState === 'hidden') finish();
+    else if (progress < 1) schedule();
   };
-  requestAnimationFrame(tick);
+  schedule();
 }
